@@ -2,19 +2,19 @@ module Docs.Components.Typeahead where
 
 import Prelude
 
-import Effect.Aff.Class (class MonadAff)
 import Data.Array (elemIndex, mapWithIndex, difference, filter, (:))
 import Data.Foldable (length, traverse_)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
+import Docs.CSS as CSS
+import Docs.Components.Dropdown (_select)
+import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Select as Select
 import Select.Setters as Setters
-
-import Docs.CSS as CSS
 
 type TypeaheadItem = String
 
@@ -26,32 +26,37 @@ data Query a
 type State =
   { items    :: Array TypeaheadItem
   , selected :: Array TypeaheadItem
-  , keepOpen :: Boolean }
+  , keepOpen :: Boolean
+  }
 
 type Input = { items :: Array String, keepOpen :: Boolean }
-data Message = Void
+type Message = Void
 
-type ChildSlot = Unit
-type ChildQuery = Select.Query Query TypeaheadItem
+type Slots m =
+  ( select :: Select.Slot Query () TypeaheadItem m Unit )
+
+type Slot = H.Slot Query Void
 
 component :: ∀ m. MonadAff m => H.Component HH.HTML Query Input Message m
 component =
-  H.parentComponent
+  H.component
     { initialState
     , render
     , eval
     , receiver: const Nothing
+    , initializer: Nothing
+    , finalizer: Nothing
     }
   where
     initialState :: Input -> State
     initialState i = { items: i.items, selected: [], keepOpen: i.keepOpen }
 
-    render :: State -> H.ParentHTML Query ChildQuery ChildSlot m
+    render :: State -> H.ComponentHTML Query (Slots m) m
     render st =
       HH.div
-        [ class_ "w-full" ]
+        [ css "w-full" ]
         [ renderSelections st.selected
-        , HH.slot unit Select.component input (HE.input HandleInputContainer)
+        , HH.slot _select unit Select.component input (HE.input HandleInputContainer)
         ]
       where
         input =
@@ -62,7 +67,7 @@ component =
           , render: renderInputContainer
           }
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Message m
+    eval :: Query ~> H.HalogenM State Query (Slots m) Message m
     eval = case _ of
       Log str a -> pure a
 
@@ -73,8 +78,8 @@ component =
           st <- H.get
           let newItems = difference (filterItems search st.items) st.selected
               index = elemIndex search st.items
-          _ <- H.query unit $ Select.replaceItems newItems
-          traverse_ (H.query unit <<< Select.highlight <<< Select.Index) index
+          _ <- H.query _select unit $ Select.replaceItems newItems
+          traverse_ (H.query _select unit <<< Select.highlight <<< Select.Index) index
 
         Select.Selected item -> do
           st <- H.get
@@ -82,7 +87,7 @@ component =
           _ <- if st.keepOpen
             then pure unit
             else do
-              _ <- H.query unit $ Select.setVisibility Select.Off
+              _ <- H.query _select unit $ Select.setVisibility Select.Off
               pure unit
 
           if length (filter ((==) item) st.items) > 0
@@ -93,7 +98,7 @@ component =
 
           newSt <- H.get
           let newItems = difference newSt.items newSt.selected
-          _ <- H.query unit $ Select.replaceItems newItems
+          _ <- H.query _select unit $ Select.replaceItems newItems
           pure unit
 
         otherwise -> pure unit
@@ -103,20 +108,20 @@ component =
         H.modify_ _ { selected = filter ((/=) item) st.selected }
         newSt <- H.get
         let newItems = difference newSt.items newSt.selected
-        _ <- H.query unit $ Select.replaceItems newItems
+        _ <- H.query _select unit $ Select.replaceItems newItems
         pure a
 
 
 ----------
 -- Helpers
 
-class_ :: ∀ p i. String -> H.IProp ( "class" :: String | i ) p
-class_ = HP.class_ <<< HH.ClassName
+css :: ∀ p i. String -> HH.IProp ( "class" :: String | i ) p
+css = HP.class_ <<< HH.ClassName
 
 filterItems :: TypeaheadItem -> Array TypeaheadItem -> Array TypeaheadItem
 filterItems str = filter (\i -> contains (Pattern str) i)
 
-renderInputContainer :: Select.State TypeaheadItem -> Select.ComponentHTML Query TypeaheadItem
+renderInputContainer :: ∀ m. MonadAff m => Select.State TypeaheadItem -> Select.HTML Query () TypeaheadItem m
 renderInputContainer state = HH.div_ [ renderInput, renderContainer ]
   where
     renderInput = HH.input $ Setters.setInputProps
@@ -124,7 +129,7 @@ renderInputContainer state = HH.div_ [ renderInput, renderContainer ]
       , HP.placeholder "Type to search..." ]
 
     renderContainer =
-      HH.div [ class_ "relative z-50" ]
+      HH.div [ css "relative z-50" ]
       $ if state.visibility == Select.Off
         then []
         else [ renderItems $ renderItem `mapWithIndex` state.items ]
@@ -137,14 +142,14 @@ renderInputContainer state = HH.div_ [ renderInput, renderContainer ]
         renderItems html =
           HH.div
           ( Setters.setContainerProps
-            [ class_ "absolute bg-white shadow rounded-sm pin-t pin-l w-full" ]
+            [ css "absolute bg-white shadow rounded-sm pin-t pin-l w-full" ]
           )
-          [ renderChild, HH.ul [ class_ "list-reset" ] html ]
+          [ renderChild, HH.ul [ css "list-reset" ] html ]
 
         renderItem index item =
           HH.li ( Setters.setItemProps index props ) [ HH.text item ]
           where
-            props = [ class_
+            props = [ css
               $ "px-4 py-1 text-grey-darkest"
               <> if state.highlightedIndex == Just index
                    then " bg-grey-lighter"
@@ -153,21 +158,21 @@ renderInputContainer state = HH.div_ [ renderInput, renderContainer ]
 renderSelections
   :: ∀ p
    . Array TypeaheadItem
-  -> H.HTML p Query
+  -> HH.HTML p (Query Unit)
 renderSelections items =
   if length items == 0
     then HH.div_ []
     else
     HH.div
-    [ class_ "bg-white rounded-sm w-full border-b border-grey-lighter" ]
+    [ css "bg-white rounded-sm w-full border-b border-grey-lighter" ]
     [ HH.ul
-      [ class_ "list-reset" ]
+      [ css "list-reset" ]
       ( renderSelectedItem <$> items )
     ]
   where
     renderSelectedItem item =
       HH.li
-      [ class_ "px-4 py-1 text-grey-darkest hover:bg-grey-lighter relative" ]
+      [ css "px-4 py-1 text-grey-darkest hover:bg-grey-lighter relative" ]
       [ HH.span_ [ HH.text item ]
       , closeButton item
       ]
@@ -175,5 +180,5 @@ renderSelections items =
     closeButton item =
       HH.span
       [ HE.onClick $ HE.input_ (Removed item)
-      , class_ "absolute pin-t pin-b pin-r p-1 mx-3 cursor-pointer" ]
+      , css "absolute pin-t pin-b pin-r p-1 mx-3 cursor-pointer" ]
         [ HH.text "×" ]

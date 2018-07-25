@@ -12,34 +12,41 @@ import Data.Const (Const(..))
 import Data.Coyoneda (Coyoneda, unCoyoneda)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (un)
+import Data.Symbol (class IsSymbol, SProxy(..))
 import Halogen as H
 import Halogen.HTML as HH
+import Prim.Row as Row
 
 data ProxyS f i a
   = Query (Coyoneda f a)
 
 -- | A proxy that hides both the Query and Message of wrapped component.
 proxy
-  :: forall f i o m
-  . H.Component HH.HTML f i o m
+  :: ∀ f i o m
+   . H.Component HH.HTML f i o m
   -> H.Component HH.HTML (ProxyS (Const Void) i) i Void m
-proxy = proxyEval (const (absurd <<< un Const))
+proxy = proxyEval (const (absurd <<< un Const)) (SProxy :: SProxy "slot")
 
 proxyEval
-  :: forall f g i o m
-   . (forall a b. (b -> a) -> g b -> H.ParentDSL i (ProxyS g i) f Unit Void m a)
+  :: ∀ f g i o cs m t0 sym
+   . IsSymbol sym
+  => Row.Cons sym (H.Slot f o Unit) t0 cs
+  => (∀ a b. (b -> a) -> g b -> H.HalogenM i (ProxyS g i) cs Void m a)
+  -> SProxy sym
   -> H.Component HH.HTML f i o m
   -> H.Component HH.HTML (ProxyS g i) i Void m
-proxyEval evalQuery component =
-  H.parentComponent
+proxyEval evalQuery sym component =
+  H.component
     { initialState: identity
-    , render
+    , render: render
     , eval
     , receiver: const Nothing
+    , initializer: Nothing
+    , finalizer: Nothing
     }
   where
-    render :: i -> H.ParentHTML (ProxyS g i) f Unit m
-    render i = HH.slot unit component i (const Nothing)
+    render :: i -> H.ComponentHTML (ProxyS g i) cs m
+    render i = HH.slot sym unit component i (const Nothing)
 
-    eval :: ProxyS g i ~> H.ParentDSL i (ProxyS g i) f Unit Void m
+    eval :: ProxyS g i ~> H.HalogenM i (ProxyS g i) cs Void m
     eval (Query iq) = unCoyoneda evalQuery iq

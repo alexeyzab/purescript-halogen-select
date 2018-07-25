@@ -48,26 +48,29 @@ type Components m
 routes :: ∀ m. MonadAff m => Components m
 routes = Map.fromFoldable
   [ Tuple "typeahead" $ proxy Component.typeahead
-  , Tuple "dropdown" $ proxy Component.dropdown ]
+  , Tuple "dropdown" $ proxy Component.dropdown
+  ]
 
 data Query a = NoOp a
 
 app :: ∀ m. MonadAff m => H.Component HH.HTML Query String Void m
 app =
-  H.parentComponent
+  H.component
     { initialState: identity
     , render
     , eval
     , receiver: const Nothing
+    , initializer: Nothing
+    , finalizer: Nothing
     }
   where
     render st = do
-      let mbComponent = Map.lookup st routes
+      let (Tuple sym mbComponent) = Map.lookup st routes
       case mbComponent of
         Nothing -> HH.div_ []
-        Just component -> HH.slot unit component unit absurd
+        Just component -> HH.slot sym unit component unit absurd
 
-    eval :: Query ~> H.ParentDSL String Query ComponentQuery Unit Void m
+    eval :: Query ~> H.HalogenM String Query _ Void m
     eval (NoOp a) = pure a
 
 
