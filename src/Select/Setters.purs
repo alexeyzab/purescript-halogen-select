@@ -37,9 +37,9 @@ type ToggleProps p =
 -- | renderToggle = div (setToggleProps [ class "btn-class" ]) [ ...html ]
 -- | ```
 setToggleProps
-  :: ∀ o item p
-   . Array (HP.IProp (ToggleProps p) (Query o item Unit))
-  -> Array (HP.IProp (ToggleProps p) (Query o item Unit))
+  :: ∀ pq cs item m p
+   . Array (HP.IProp (ToggleProps p) (Query pq cs item m Unit))
+  -> Array (HP.IProp (ToggleProps p) (Query pq cs item m Unit))
 setToggleProps = flip (<>)
   [ HE.onFocus \ev -> Just do
       Select.captureRef $ FE.toEvent ev
@@ -81,9 +81,9 @@ type InputProps p =
 -- | renderInput = input_ (setInputProps [ class "my-class" ])
 -- | ```
 setInputProps
-  :: ∀ o item p
-   . Array (HP.IProp (InputProps p) (Query o item Unit))
-  -> Array (HP.IProp (InputProps p) (Query o item Unit))
+  :: ∀ pq cs item m p
+   . Array (HP.IProp (InputProps p) (Query pq cs item m Unit))
+  -> Array (HP.IProp (InputProps p) (Query pq cs item m Unit))
 setInputProps = flip (<>)
   [ HE.onFocus \ev -> Just do
       Select.captureRef $ FE.toEvent ev
@@ -116,10 +116,10 @@ type ItemProps p =
 -- | render = renderItem `mapWithIndex` itemsArray
 -- | ```
 setItemProps
-  :: ∀ o item p
+  :: ∀ pq cs item m p
    . Int
-  -> Array (HP.IProp (ItemProps p) (Query o item Unit))
-  -> Array (HP.IProp (ItemProps p) (Query o item Unit))
+  -> Array (HP.IProp (ItemProps p) (Query pq cs item m Unit))
+  -> Array (HP.IProp (ItemProps p) (Query pq cs item m Unit))
 setItemProps index = flip (<>)
   [ HE.onMouseDown \ev -> Just do
       Select.preventClick ev
@@ -132,8 +132,8 @@ setItemProps index = flip (<>)
 -- | from bubbling up a blur event to the DOM. This should be used on the parent
 -- | element that contains your items.
 setContainerProps
-  :: ∀ o item p
-   . Array (HP.IProp (onMouseDown :: ME.MouseEvent | p) (Query o item Unit))
-  -> Array (HP.IProp (onMouseDown :: ME.MouseEvent | p) (Query o item Unit))
+  :: ∀ pq cs item m p
+   . Array (HP.IProp (onMouseDown :: ME.MouseEvent | p) (Query pq cs item m Unit))
+  -> Array (HP.IProp (onMouseDown :: ME.MouseEvent | p) (Query pq cs item m Unit))
 setContainerProps = flip (<>)
   [ HE.onMouseDown $ Just <<< Select.preventClick ]
